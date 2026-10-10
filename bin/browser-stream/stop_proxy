@@ -1,0 +1,17 @@
+#!/usr/bin/env fish
+
+set BASE "$HOME/temp/bin/browser-stream"
+set PIDFILE "$BASE/logs/socks.pid"
+
+"$BASE/stop"
+
+if test -f "$PIDFILE"
+    set pid (cat "$PIDFILE")
+
+    if kill -0 $pid 2>/dev/null
+        kill $pid
+    end
+
+    rm -f "$PIDFILE"
+end
+

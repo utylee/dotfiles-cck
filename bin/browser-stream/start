@@ -1,0 +1,133 @@
+#!/usr/bin/env fish
+
+set DISPLAY_NUM :99
+# set PROFILE "$HOME/.config/mozilla/firefox/4k7suz42.default"
+set PROFILE "$HOME/.config/mozilla/firefox/hqx5b9lb.xvfb"
+set HOST_IP 192.168.1.123
+set LOG_DIR "$HOME/temp/bin/browser-stream/logs"
+set STREAM_URL rtsp://127.0.0.1:8554/live/browser
+
+if test (count $argv) -ge 1
+    set URL $argv[1]
+else
+    set URL https://www.hulk24.com
+end
+
+mkdir -p "$LOG_DIR"
+
+echo "[1/6] Xvfb 확인"
+
+if not pgrep -f 'Xvfb :99' >/dev/null
+    Xvfb :99 \
+        -screen 0 1920x1080x24 \
+        -dpi 96 \
+        -ac \
+        -nolisten tcp \
+        >"$LOG_DIR/xvfb.log" 2>&1 &
+
+    sleep 1
+end
+
+env DISPLAY=:99 xdpyinfo >/dev/null
+or begin
+    echo "Xvfb :99 실행 실패"
+    exit 1
+end
+
+echo "[2/6] 가상 오디오 확인"
+
+if not pactl list short sinks | grep -qE '[[:space:]]browser_stream[[:space:]]'
+    pactl load-module module-null-sink \
+        sink_name=browser_stream \
+        sink_properties=device.description=Browser_Stream \
+        >"$LOG_DIR/pulse-module-id"
+end
+
+echo "[3/6] MediaMTX 확인"
+
+if not docker container inspect mediamtx >/dev/null 2>&1
+    docker run -d \
+        --name mediamtx \
+        --restart unless-stopped \
+        -e MTX_RTSPTRANSPORTS=tcp \
+        -e MTX_WEBRTCADDITIONALHOSTS="$HOST_IP" \
+        -p 8554:8554 \
+        -p 1935:1935 \
+        -p 8888:8888 \
+        -p 8889:8889 \
+        -p 8890:8890/udp \
+        -p 8189:8189/udp \
+        bluenviron/mediamtx:1
+else
+    docker start mediamtx >/dev/null 2>&1
+end
+
+echo "[4/6] Firefox 확인"
+
+if not pgrep -af "$PROFILE" >/dev/null
+    env \
+        DISPLAY=:99 \
+        MOZ_NO_REMOTE=1 \
+        PULSE_SINK=browser_stream \
+        firefox \
+            --no-remote \
+            --new-instance \
+            --width 1920 \
+            --height 1080 \
+            --profile "$PROFILE" \
+            "$URL" \
+            >"$LOG_DIR/firefox.log" 2>&1 &
+
+    sleep 3
+end
+
+echo "[5/6] x11vnc 확인"
+
+if not pgrep -f 'x11vnc.*-display :99' >/dev/null
+    x11vnc \
+        -display :99 \
+        -forever \
+        -shared \
+        -rfbport 5900 \
+        -nopw \
+        >"$LOG_DIR/x11vnc.log" 2>&1 &
+
+    sleep 1
+end
+
+echo "[6/6] ffmpeg 확인"
+
+if not pgrep -f "$STREAM_URL" >/dev/null
+    ffmpeg \
+        -f x11grab \
+        -framerate 30 \
+        -video_size 1920x1080 \
+        -i :99.0 \
+        -f pulse \
+        -i browser_stream.monitor \
+        -c:v libx264 \
+        -preset veryfast \
+        -tune zerolatency \
+        -pix_fmt yuv420p \
+        -g 60 \
+        -b:v 4M \
+        -maxrate 4M \
+        -bufsize 8M \
+        -c:a libopus \
+        -b:a 128k \
+        -ar 48000 \
+        -ac 2 \
+        -rtsp_transport tcp \
+        -f rtsp \
+        "$STREAM_URL" \
+        >"$LOG_DIR/ffmpeg.log" 2>&1 &
+
+    echo $last_pid >"$LOG_DIR/ffmpeg.pid"
+end
+
+
+echo
+echo "스트리밍 시작 완료"
+echo "WebRTC: http://$HOST_IP:8889/live/browser"
+echo "HLS:    http://$HOST_IP:8888/live/browser/index.m3u8"
+echo "RTSP:   rtsp://$HOST_IP:8554/live/browser"

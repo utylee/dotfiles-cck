@@ -1,0 +1,20 @@
+#!/usr/bin/env fish
+
+set BASE "$HOME/temp/bin/browser-stream"
+set LOG_DIR "$BASE/logs"
+
+mkdir -p "$LOG_DIR"
+
+if not ss -lnt | grep -q '127.0.0.1:10808'
+    ssh -N -D 127.0.0.1:10808 \
+        -o ExitOnForwardFailure=yes \
+        -o ServerAliveInterval=30 \
+        -o ServerAliveCountMax=3 \
+        utylee@152.69.195.135 \
+        >"$LOG_DIR/socks.log" 2>&1 &
+
+    echo $last_pid >"$LOG_DIR/socks.pid"
+    sleep 1
+end
+
+exec "$BASE/start" $argv

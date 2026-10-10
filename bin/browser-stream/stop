@@ -1,0 +1,48 @@
+#!/usr/bin/env fish
+
+set PROFILE "$HOME/.config/mozilla/firefox/4k7suz42.default"
+
+echo "[1/5] ffmpeg 종료"
+pkill -f 'rtsp://127.0.0.1:8554/live/browser' 2>/dev/null
+or true
+
+echo "[2/5] x11vnc 종료"
+pkill -f 'x11vnc.*-display :99' 2>/dev/null
+or true
+
+echo "[3/5] 스트리밍용 Firefox 종료"
+pkill -f "$PROFILE" 2>/dev/null
+or true
+
+echo "[4/5] MediaMTX 정지"
+docker stop mediamtx >/dev/null 2>&1
+or true
+
+echo "[5/5] Xvfb :99 종료"
+pkill -f 'Xvfb :99' 2>/dev/null
+or true
+
+echo "종료 완료"
+
+
+##!/usr/bin/env fish
+
+#set PROFILE "$HOME/.config/mozilla/firefox/4k7suz42.default"
+
+#echo "[1/4] ffmpeg 종료"
+#pkill -f 'rtsp://127.0.0.1:8554/live/browser' 2>/dev/null
+#or true
+
+#echo "[2/4] 스트리밍용 Firefox 종료"
+#pkill -f "$PROFILE" 2>/dev/null
+#or true
+
+#echo "[3/4] MediaMTX 정지"
+#docker stop mediamtx >/dev/null 2>&1
+#or true
+
+#echo "[4/4] Xvfb :99 종료"
+#pkill -f 'Xvfb :99' 2>/dev/null
+#or true
+
+#echo "종료 완료"
